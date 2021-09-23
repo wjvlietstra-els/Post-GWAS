@@ -1,0 +1,17 @@
+Complete set of protein-protein interactions extracted from PathwayStudio.csv
+filtered protein protein interactions.csv
+unfiltered_protein_protein_interactions.csv
+EVOKE/unfiltered_protein_protein_interactions_EVOKE.csv
+EVOKE/unfiltered.txt
+Input sets/Gene expression data/*
+Node2vec/filtered protein protein interactions with weights.csv
+Node2vec/filtered protein protein interactions without weights.csv
+Node2vec/unfiltered protein protein interactions with weights.csv
+Node2vec/unfiltered protein protein interactions without weights.csv
+Predicates/PathwayStudio_incoming_predicate_features_PPI.csv
+Predicates/PathwayStudio_incoming_predicate_features_PPI_no_expression.csv
+Predicates/PathwayStudio_outgoing_predicate_features_PPI.csv
+Predicates/PathwayStudio_outgoing_predicate_features_PPI_no_expression.csv
+Struc2vec/unfiltered protein protein interactions with weights.csv
+Struc2vec/unfiltered protein protein interactions without weights.csv
+

@@ -1,0 +1,2 @@
+refset;bp distance;Recall snps (lco);Recall genes (lco);ROC-AUC overall (lco);ROC-AUC - mean per snpl (lco);Hits@1(lco);Hits@3(lco);Hits@5(lco);Hits@10(lco);Mean rank (lco);Median rank (lco)
+farashi;depict;5,0;5,0;40,0;0,8;4,0;5,0;5,0;5,0;1,2;1,0

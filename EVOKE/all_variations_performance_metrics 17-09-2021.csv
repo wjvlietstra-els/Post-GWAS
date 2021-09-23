@@ -1,0 +1,5 @@
+refset;algorithm;variation;bp distance;ROC-AUC per chromosome;Recall snps;Recall entries;Recall genes;ROC-AUC overall (lco);ROC-AUC - mean per snpl (lco);Hits@1(lco);Hits@3(lco);Hits@5(lco);Hits@10(lco);Mean rank (lco);Median rank (lco)
+Teslovich;LR;log;depict;;67,0;68,0;66,0;80,77113198220465;0,7931535345933942;48,0;60,0;65,0;68,0;1,7647058823529411;1,0
+DeRycke;DT;log;depict;;42,0;46,0;44,0;69,54106280193237;0,7750685545536045;42,0;46,0;46,0;46,0;1,0869565217391304;1,0
+farashi;RF;normal;depict;;87,0;87,0;83,0;80,6168344399229;0,7617769419092594;58,0;78,0;83,0;87,0;1,7471264367816093;1,0
+farashi p-value cutoff;KNN7;log;depict;;41,0;41,0;41,0;69,10569105691057;0,7327235772357724;31,0;41,0;41,0;41,0;1,3170731707317074;1,0

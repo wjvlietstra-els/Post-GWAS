@@ -1,0 +1,8 @@
+refset;bp distance;Recall snps (lco);Recall genes (lco);ROC-AUC overall (lco);ROC-AUC - mean per snpl (lco);Hits@1(lco);Hits@3(lco);Hits@5(lco);Hits@10(lco);Mean rank (lco);Median rank (lco)
+farashi p-value cutoff;25;2,0;2,0;;1,0;2,0;2,0;2,0;2,0;1,0;1,0
+farashi p-value cutoff;50;2,0;2,0;;1,0;2,0;2,0;2,0;2,0;1,0;1,0
+farashi p-value cutoff;100;2,0;2,0;100,0;1,0;2,0;2,0;2,0;2,0;1,0;1,0
+farashi p-value cutoff;500;4,0;4,0;45,833333333333336;0,4166666666666667;1,0;4,0;4,0;4,0;2,0;2,0
+farashi p-value cutoff;1000;3,0;3,0;74,24242424242425;0,6666666666666666;2,0;2,0;3,0;3,0;2,3333333333333335;1,0
+farashi p-value cutoff;2000;5,0;5,0;59,09090909090909;0,4;2,0;3,0;3,0;5,0;3,8;2,0
+farashi p-value cutoff;depict;2,0;2,0;25,0;0,5;1,0;2,0;2,0;2,0;1,5;1,5

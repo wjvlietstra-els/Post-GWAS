@@ -5,20 +5,43 @@
 import pandas as pd
 from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsRegressor
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestRegressor
 import json
 import numpy as np
 from itertools import product
+from datetime import datetime
+from sklearn.utils import shuffle
+import sklearn.metrics
 
-ML_algorithms = ["LR", "SVM", "DT", "KNN", "RF"]
+writeOut = True
+
+ML_algorithms = ["LR", "SVM", "DT", "KNN1", "KNN3", "KNN5", "KNN7", "KNN9", "RF"]
 variations = ["normal", "graphlet", "autoencode", "combi"]
-all_bp_distances = [100, 500, 1000, 2000]
+all_bp_distances = ["depict"] #[25, 50, 100, 500, 1000, 2000, "depict"]
 refsets = ["farashi", "farashi p-value cutoff", "DeRycke", "Teslovich"]
 weighted = ["weighted", "unweighted"]
 
 all_metrics = pd.DataFrame(list(product(refsets, ML_algorithms, variations, weighted, all_bp_distances)), columns = ["refset", "algorithm", "variation", "weighted", "bp distance"])
+
+if writeOut:
+    all_metrics = all_metrics[all_metrics["bp distance"] == "depict"]
+    all_metrics = all_metrics[((all_metrics["variation"].isin(["normal"])) & (all_metrics["algorithm"] == "KNN9") & (all_metrics["refset"] == "farashi") & (all_metrics["weighted"] == "weighted")) |
+                ((all_metrics["variation"].isin(["graphlet"])) & (all_metrics["algorithm"] == "KNN7") & (all_metrics["refset"] == "farashi p-value cutoff") & (all_metrics["weighted"] == "weighted")) |
+                ((all_metrics["variation"].isin(["combi"])) & (all_metrics["algorithm"] == "KNN3") & (all_metrics["refset"] == "DeRycke") & (all_metrics["weighted"] == "unweighted")) |
+                ((all_metrics["variation"].isin(["normal"])) & (all_metrics["algorithm"] == "KNN5") & (all_metrics["refset"] == "Teslovich") & (all_metrics["weighted"] == "unweighted"))
+               ]
+
+graphlets = pd.read_csv("/Users/vlietstraw/git/Post-GWAS/EVOKE/unfiltered.txt", header = None, sep = " ", skiprows = 1)
+graphlets.drop(columns = [73], inplace = True)
+graphlets = graphlets.apply(lambda x: np.log10(x, where = x > 0))
+graphlets.columns = ["Graphlet " + str(x) for x in range(len(list(graphlets)))]
+graphlets.index = [x + 1 for x in list(graphlets.index)]
+
+if graphlets.isnull().values.any() is True:
+    import sys
+    sys.exit()
 
 for am_index, am_values in all_metrics.iterrows():
     print("Predicting row " + str(am_index) + " of " + str(len(all_metrics)))
@@ -43,11 +66,6 @@ for am_index, am_values in all_metrics.iterrows():
         # Extend embeddings with graphlets
         if class_type == "graphlet":
             f = pd.read_csv("/Users/vlietstraw/git/Post-GWAS/Struc2vec/PathwayStudio_PPI_complete_directed_weighted.emb", sep = " ", skiprows = 1, header = None, index_col = 0)
-            graphlets = pd.read_csv("/Users/vlietstraw/git/Post-GWAS/EVOKE/unfiltered.txt", header = None, sep = " ", skiprows = 1)
-            graphlets.drop(columns = [73], inplace = True)
-            graphlets = graphlets.apply(lambda x: np.log10(x, where = x > 0))
-            graphlets.columns = ["Graphlet " + str(x) for x in range(len(list(graphlets)))]
-            graphlets.index = [x + 1 for x in list(graphlets.index)]
             f = f.merge(graphlets, right_index = True, left_index = True)
 
         if class_type == "combi":
@@ -55,11 +73,6 @@ for am_index, am_values in all_metrics.iterrows():
             f.drop(columns = [350], inplace = True)
             f2 = pd.read_csv("/Users/vlietstraw/git/Post-GWAS/Struc2vec/PathwayStudio_PPI_complete_directed_weighted.emb", sep = " ", skiprows = 1, header = None, index_col = 0)
             f.index = f2.index
-            graphlets = pd.read_csv("/Users/vlietstraw/git/Post-GWAS/EVOKE/unfiltered.txt", header = None, sep = " ", skiprows = 1)
-            graphlets.drop(columns = [73], inplace = True)
-            graphlets = graphlets.apply(lambda x: np.log10(x, where = x > 0))
-            graphlets.columns = ["Graphlet " + str(x) for x in range(len(list(graphlets)))]
-            graphlets.index = [x + 1 for x in list(graphlets.index)]
             f = f.merge(graphlets, right_index = True, left_index = True)
 
     if am_values["weighted"] == "unweighted":
@@ -115,7 +128,7 @@ for am_index, am_values in all_metrics.iterrows():
         ref = ref[ref["GWAS/eQTL p-value¥"] <= float("5e-8")]
 
     if am_values["refset"] == "DeRycke":
-        ref = pd.read_csv("/Users/vlietstraw/git/Post-GWAS/Input sets/DeRycke/DeRycke reference set.csv")
+        ref = pd.read_csv("/Users/vlietstraw/git/Post-GWAS/Input sets/DeRycke/DeRycke reference set.csv", delimiter = ";")
         ref["nodeID"] = [ensembl_dict[x] if x in ensembl_dict.keys() else None for x in ref["ENSEMBL"]]
 
 
@@ -124,18 +137,44 @@ for am_index, am_values in all_metrics.iterrows():
         ref["nodeID"] = [ensembl_dict[x] if x in ensembl_dict.keys() else None for x in ref["ENSEMBL"]]
 
 
-    # Drop all unmappable candidates
-    ref.dropna(subset = ["nodeID"], inplace = True)
-    ref["nodeID"] = ref["nodeID"].astype(int)
-
+    ref = shuffle(ref)
 
     # In[9]:
 
 
     # Set bp distance cutoff
-    max_bp_distance = am_values["bp distance"]
-    max_bp_distance = max_bp_distance * 1000
-    ref = ref[ref["bp distance absolute"] <= max_bp_distance]
+    if am_values["bp distance"] != "depict":
+        max_bp_distance = am_values["bp distance"]
+        max_bp_distance = max_bp_distance * 1000
+        ref = ref[ref["bp distance absolute"] <= max_bp_distance]
+    elif am_values["bp distance"] == "depict":
+        if am_values["refset"] == "farashi":
+            depict = pd.read_csv("~/git/DEPICT/outcomes/Farashi complete 2nd round/farashi_no_pvalue_filtering_geneprioritization.txt", sep = "\t")
+        if am_values["refset"] == "farashi p-value cutoff":
+            depict = pd.read_csv("~/git/DEPICT/outcomes/Farashi complete 2nd round/farashi_default_pvalue_filtering_geneprioritization.txt", sep = "\t")
+        if am_values["refset"] == "DeRycke":
+            depict = pd.read_csv("~/git/DEPICT/outcomes/DeRycke/DeRycke_output_geneprioritization.txt", sep = "\t")
+        if am_values["refset"] == "Teslovich":
+            depict = pd.read_csv("~/git/DEPICT/outcomes/Teslovich for paper Wytze/Teslovich_output_geneprioritization.txt", sep = "\t")
+        depict["nodeID"] = [ensembl_dict[x] if x in ensembl_dict.keys() else None for x in depict["Ensembl gene ID"]]
+
+
+        depict["Locus"] = depict["Locus"].astype(str).apply(lambda x: x.split(";"))
+        depict = depict.explode("Locus")
+
+        snp_replacement_dict = {"rs113645266" : "rs6557271",
+                        "rs150282463" : "rs13137700",
+                        "rs67276543" : "rs34884832"}
+        depict["Locus"] = depict["Locus"].replace(snp_replacement_dict)
+
+        depict = depict[["Locus", "nodeID"]]
+        depict.columns = ["SNP ID", "nodeID"]
+
+        ref = ref.merge(depict, on = ["SNP ID", "nodeID"], how = "inner")
+
+    # Drop all unmappable candidates
+    ref.dropna(subset = ["nodeID"], inplace = True)
+    ref["nodeID"] = ref["nodeID"].astype(int)
 
 
     # In[10]:
@@ -148,62 +187,63 @@ for am_index, am_values in all_metrics.iterrows():
 
     # In[11]:
 
-
-    # Identify all genes which are at least once positive
-    positives = ref.groupby("nodeID")["Class"].sum()
-    positives[positives > 1] = 1
-
-    f = f.merge(positives, left_index = True, right_index = True)
-
-
     # ## Leave SNP out classification
 
     # In[12]:
 
 
-    outcomes = pd.DataFrame()
-    train_auc_score = []
-    train_auc_rank = []
+#     outcomes = pd.DataFrame()
+#     train_auc_score = []
+#     train_auc_rank = []
 
 
-    # In[13]:
+#     # In[13]:
 
 
-    # Perform leave-SNP-out cross validation
-    SNPs = list(set(ref["SNP ID"]))
-    for snp in SNPs:
-        print("Predicting candidates for " + snp + ", number " + str(SNPs.index(snp) + 1) + " out of " + str(len(SNPs)))
+#     # Perform leave-SNP-out cross validation
+#     SNPs = list(set(ref["SNP ID"]))
+#     for snp in SNPs:
+#         print("Predicting candidates for " + snp + ", number " + str(SNPs.index(snp) + 1) + " out of " + str(len(SNPs)))
 
-        f_test = f[f.index.isin(ref[ref["SNP ID"] == snp]["nodeID"])].copy()
-        f_train = f[f.index.isin(ref[ref["SNP ID"] != snp]["nodeID"])].copy()
+#         # Identify all genes which are at least once positive
+#         positives = ref[ref["SNP ID"] != snp].groupby("nodeID")["Class"].sum()
+#         positives[positives > 1] = 1
 
-        train_class = f["Class"][f.index.isin(f_train.index)]
-        test_class = f["Class"][f.index.isin(f_test.index)]
+#         f_test = f[f.index.isin(ref[ref["SNP ID"] == snp]["nodeID"])].copy()
+#         f_train = f[f.index.isin(ref[ref["SNP ID"] != snp]["nodeID"])].copy()
 
-        f_test.drop(columns = ["Class"], inplace = True)
-        f_train.drop(columns = ["Class"], inplace = True)
+#         f_train = f_train.merge(positives, left_index = True, right_index = True)
+#         train_class = f_train["Class"]
+#         f_train.drop(columns = ["Class"], inplace = True)
 
-        if classifier == "SVM":
-            clf = SVR(gamma="auto")
-        if classifier == "DT":
-            clf = DecisionTreeRegressor()
-        if classifier == "KNN":
-            clf = KNeighborsClassifier(n_neighbors = 3)
-        if classifier == "LR":
-            from warnings import filterwarnings
-            filterwarnings('ignore')
-            clf = LogisticRegression()
-        if classifier == "RF":
-            clf = RandomForestRegressor(n_estimators = 1000, n_jobs = -1, max_features = "sqrt", max_depth = 5)
+#         if classifier == "SVM":
+#             clf = SVR(gamma="auto")
+#         if classifier == "DT":
+#             clf = DecisionTreeRegressor()
+#         if classifier == "KNN1":
+#             clf = KNeighborsRegressor(n_neighbors = 1)
+#         if classifier == "KNN3":
+#             clf = KNeighborsRegressor(n_neighbors = 3)
+#         if classifier == "KNN5":
+#             clf = KNeighborsRegressor(n_neighbors = 5)
+#         if classifier == "KNN7":
+#             clf = KNeighborsRegressor(n_neighbors = 7)
+#         if classifier == "KNN9":
+#             clf = KNeighborsRegressor(n_neighbors = 9)
+#         if classifier == "LR":
+#             from warnings import filterwarnings
+#             filterwarnings('ignore')
+#             clf = LogisticRegression()
+#         if classifier == "RF":
+#             clf = RandomForestRegressor(n_estimators = 1000, n_jobs = -1, max_features = "sqrt", max_depth = 5)
 
+#         clf.fit(f_train, train_class)
 
-        clf.fit(f_train, train_class)
+#         outcomes = pd.concat([outcomes, pd.DataFrame({"predicted" : clf.predict(f_test),
+#                                                         "SNP ID" : snp,
+#                                                         "nodeID" : f_test.index})])
 
-        outcomes = pd.concat([outcomes, pd.DataFrame({"predicted" : clf.predict(f_test),
-                                                        "SNP ID" : snp,
-                                                        "nodeID" : f_test.index})])
-
-    outcomes = outcomes.merge(ref[["SNP ID", "nodeID", "Class"]], on = ["SNP ID", "nodeID"], how = "left")
+#     outcomes = outcomes.merge(ref[["SNP ID", "nodeID", "Class"]], on = ["SNP ID", "nodeID"], how = "left")
 
 
     # ## Leave chromosome out validation
@@ -215,6 +255,12 @@ for am_index, am_values in all_metrics.iterrows():
     train_auc_score2 = []
     train_auc_rank2 = []
 
+
+    # Identify all genes which are at least once positive
+    positives = ref.groupby("nodeID")["Class"].sum()
+    positives[positives > 1] = 1
+
+    f = f.merge(positives, left_index = True, right_index = True)
 
     # In[15]:
 
@@ -238,21 +284,39 @@ for am_index, am_values in all_metrics.iterrows():
             clf = SVR(gamma="auto")
         if classifier == "DT":
             clf = DecisionTreeRegressor()
-        if classifier == "KNN":
-            clf = KNeighborsClassifier(n_neighbors = 3)
+        if classifier == "KNN1":
+            clf = KNeighborsRegressor(n_neighbors = 1)
+        if classifier == "KNN3":
+            clf = KNeighborsRegressor(n_neighbors = 3)
+        if classifier == "KNN5" and len(f_train) >= 5:
+            clf = KNeighborsRegressor(n_neighbors = 5)
+        if classifier == "KNN5" and len(f_train) < 5:
+            continue
+        if classifier == "KNN7" and len(f_train) >= 7:
+            clf = KNeighborsRegressor(n_neighbors = 7)
+        if classifier == "KNN7" and len(f_train) < 7:
+            continue
+        if classifier == "KNN9" and len(f_train) >= 9:
+            clf = KNeighborsRegressor(n_neighbors = 9)
+        if classifier == "KNN9" and len(f_train) < 9:
+            continue
         if classifier == "LR":
-            from warnings import filterwarnings
-            filterwarnings('ignore')
-            clf = LogisticRegression()
+            clf = LogisticRegression(max_iter = 10000)
         if classifier == "RF":
             clf = RandomForestRegressor(n_estimators = 1000, n_jobs = -1, max_features = "sqrt", max_depth = 5)
 
         clf.fit(np.array(f_train), np.array(train_class))
 
-        outcomes2 = pd.concat([outcomes2, pd.DataFrame({"predicted" : clf.predict(f_test),
-                                                        "Class" : test_class,
-                                                        "chromosome" : chrom,
-                                                        "nodeID" : f_test.index})])
+        if classifier == "LR":
+            outcomes2 = pd.concat([outcomes2, pd.DataFrame({"predicted" : clf.predict_proba(f_test)[:,1],
+                                                "Class" : test_class,
+                                                "chromosome" : chrom,
+                                                "nodeID" : f_test.index})])
+        else:
+            outcomes2 = pd.concat([outcomes2, pd.DataFrame({"predicted" : clf.predict(f_test),
+                                                            "Class" : test_class,
+                                                            "chromosome" : chrom,
+                                                            "nodeID" : f_test.index})])
 
 
     # In[16]:
@@ -264,182 +328,194 @@ for am_index, am_values in all_metrics.iterrows():
 
     # ## Evaluate leave-SNP-out
 
-    # In[17]:
+#     # In[17]:
+
+#     outcomes = outcomes.sort_values(["SNP ID", "predicted"], ascending = False)
+#     outcomes["For-SNP rank"] = outcomes.groupby("SNP ID").cumcount() + 1
 
 
-    outcomes = outcomes.sort_values(["SNP ID", "predicted"], ascending = False)
-    outcomes["For-SNP rank"] = outcomes.groupby("SNP ID").cumcount() + 1
+#     # In[18]:
 
 
-    # In[18]:
+#     all_metrics.at[am_index, "Recall snps"] = len(set(outcomes["SNP ID"]))
+#     all_metrics.at[am_index, "Recall genes"] = sum(outcomes["Class"])
 
 
-    len(set(outcomes["SNP ID"]))
+#     # In[20]:
 
 
-    # In[19]:
+#     import sklearn.metrics
+
+#     fpr, tpr, thresholds = sklearn.metrics.roc_curve(outcomes["Class"], -outcomes["For-SNP rank"], pos_label = 1)
+#     all_metrics.at[am_index, "ROC-AUC overall (lso)"] = sklearn.metrics.auc(fpr, tpr) * 100
 
 
-    sum(outcomes["Class"])
+#     # In[21]:
 
 
-    # In[20]:
+#     # Calculate the ROC-AUC for every SNP and average the result
+#     SNPS2 = list(set(outcomes["SNP ID"]))
+#     aucs = []
+#     for snp in SNPS2:
+#       if len(set(outcomes["Class"][outcomes["SNP ID"] == snp])) == 1:
+#           aucs.append(list(set(outcomes["Class"][outcomes["SNP ID"] == snp]))[0])
+#       else:
+#           fpr, tpr, thresholds = sklearn.metrics.roc_curve(outcomes["Class"][outcomes["SNP ID"] == snp], -outcomes["For-SNP rank"][outcomes["SNP ID"] == snp], pos_label = 1)
+#           aucs.append(sklearn.metrics.auc(fpr, tpr))
+#     all_metrics.at[am_index, "ROC-AUC - mean per snpl (lso)"] = sum(aucs)/len(aucs)
 
 
-    import sklearn.metrics
-
-    fpr, tpr, thresholds = sklearn.metrics.roc_curve(outcomes["Class"], -outcomes["For-SNP rank"], pos_label = 1)
-    all_metrics.at[am_index, "ROC-AUC overall (lso)"] = sklearn.metrics.auc(fpr, tpr) * 100
+#     # In[22]:
 
 
-    # In[21]:
+#     # Calculate hits @1
+#     all_metrics.at[am_index, "Hits@1(lso)"] = sum(outcomes["Class"][(outcomes["Class"] == 1) & (outcomes["For-SNP rank"] == 1)])
 
 
-    # Calculate the ROC-AUC for every SNP and average the result
-    SNPS2 = list(set(outcomes["SNP ID"]))
-    aucs = []
-    for snp in SNPS2:
-      if len(set(outcomes["Class"][outcomes["SNP ID"] == snp])) == 1:
-          aucs.append(list(set(outcomes["Class"][outcomes["SNP ID"] == snp]))[0])
-      else:
-          fpr, tpr, thresholds = sklearn.metrics.roc_curve(outcomes["Class"][outcomes["SNP ID"] == snp], -outcomes["For-SNP rank"][outcomes["SNP ID"] == snp], pos_label = 1)
-          aucs.append(sklearn.metrics.auc(fpr, tpr))
-    all_metrics.at[am_index, "ROC-AUC - mean per snpl (lso)"] = sum(aucs)/len(aucs)
+#     # In[23]:
 
 
-    # In[22]:
+#     # Calculate hits @3
+#     all_metrics.at[am_index, "Hits@3(lso)"] = sum(outcomes["Class"][(outcomes["Class"] == 1) & (outcomes["For-SNP rank"] <= 3)])
 
 
-    # Calculate hits @1
-    all_metrics.at[am_index, "Hits@1(lso)"] = sum(outcomes["Class"][(outcomes["Class"] == 1) & (outcomes["For-SNP rank"] == 1)])
+#     # In[24]:
 
 
-    # In[23]:
+#     # Calculate hits @5
+#     all_metrics.at[am_index, "Hits@5(lso)"] = sum(outcomes["Class"][(outcomes["Class"] == 1) & (outcomes["For-SNP rank"] <= 5)])
 
 
-    # Calculate hits @3
-    all_metrics.at[am_index, "Hits@3(lso)"] = sum(outcomes["Class"][(outcomes["Class"] == 1) & (outcomes["For-SNP rank"] <= 3)])
+#     # In[25]:
 
 
-    # In[24]:
+#     # Calculate hits @10
+#     all_metrics.at[am_index, "Hits@10(lso)"] = sum(outcomes["Class"][(outcomes["Class"] == 1) & (outcomes["For-SNP rank"] <= 10)])
 
 
-    # Calculate hits @5
-    all_metrics.at[am_index, "Hits@5(lso)"] = sum(outcomes["Class"][(outcomes["Class"] == 1) & (outcomes["For-SNP rank"] <= 5)])
+#     # In[26]:
 
 
-    # In[25]:
+#     all_metrics.at[am_index, "Mean rank (lso)"] = outcomes["For-SNP rank"][(outcomes["Class"] == 1)].mean()
 
 
-    # Calculate hits @10
-    all_metrics.at[am_index, "Hits@10(lso)"] = sum(outcomes["Class"][(outcomes["Class"] == 1) & (outcomes["For-SNP rank"] <= 10)])
+#     # In[27]:
 
 
-    # In[26]:
-
-
-    all_metrics.at[am_index, "Mean rank (lso)"] = outcomes["For-SNP rank"][(outcomes["Class"] == 1)].mean()
-
-
-    # In[27]:
-
-
-    all_metrics.at[am_index, "Median rank (lso)"] = outcomes["For-SNP rank"][outcomes["Class"] == 1].quantile(q = [0,0.25,0.5,0.75,1])[0.50]
+#     all_metrics.at[am_index, "Median rank (lso)"] = outcomes["For-SNP rank"][outcomes["Class"] == 1].quantile(q = [0,0.25,0.5,0.75,1])[0.50]
 
 
     # ## Evaluate leave-chromosome-out
 
     # In[28]:
+    if len(outcomes2) > 0:
+
+        outcomes2 = outcomes2.sort_values(["chromosome", "predicted"], ascending = False)
+        outcomes2["For-chromosome rank"] = outcomes2.groupby("chromosome").cumcount() + 1
 
 
-    outcomes2 = outcomes2.sort_values(["chromosome", "predicted"], ascending = False)
-    outcomes2["For-chromosome rank"] = outcomes2.groupby("chromosome").cumcount() + 1
+        # In[29]:
 
 
-    # In[29]:
-
-
-    chromosomes = list(set(outcomes2["chromosome"]))
-    aucs = []
-    for chrom in chromosomes:
-      fpr, tpr, thresholds = sklearn.metrics.roc_curve(outcomes2["Class"][outcomes2["chromosome"] == chrom], -outcomes2["For-chromosome rank"][outcomes2["chromosome"] == chrom], pos_label = 1)
-      aucs.append(sklearn.metrics.auc(fpr, tpr))
-    #print(sum(aucs)/len(aucs))
-
-
-    # In[30]:
-
-
-    ref = ref.merge(outcomes2[["nodeID", "predicted"]], on = "nodeID", how = "left")
-
-
-    # In[31]:
-
-
-    ref = ref.sort_values(["SNP ID", "predicted"], ascending = False)
-    ref["For-SNP rank"] = ref.groupby("SNP ID").cumcount() + 1
-
-
-    # In[32]:
-
-
-    fpr, tpr, thresholds = sklearn.metrics.roc_curve(ref["Class"], -ref["For-SNP rank"], pos_label = 1)
-    all_metrics.at[am_index, "ROC-AUC overall (lco)"] = sklearn.metrics.auc(fpr, tpr) * 100
-
-
-    # In[33]:
-
-
-    # Calculate the ROC-AUC for every SNP and average the result
-    SNPS2 = list(set(ref["SNP ID"]))
-    aucs = []
-    for snp in SNPS2:
-      if len(set(ref["Class"][ref["SNP ID"] == snp])) == 1:
-          aucs.append(list(set(ref["Class"][ref["SNP ID"] == snp]))[0])
-      else:
-          fpr, tpr, thresholds = sklearn.metrics.roc_curve(ref["Class"][ref["SNP ID"] == snp], -ref["For-SNP rank"][ref["SNP ID"] == snp], pos_label = 1)
+        chromosomes = list(set(outcomes2["chromosome"]))
+        aucs = []
+        for chrom in chromosomes:
+          fpr, tpr, thresholds = sklearn.metrics.roc_curve(outcomes2["Class"][outcomes2["chromosome"] == chrom], -outcomes2["For-chromosome rank"][outcomes2["chromosome"] == chrom], pos_label = 1)
           aucs.append(sklearn.metrics.auc(fpr, tpr))
-    all_metrics.at[am_index, "ROC-AUC - mean per snpl (lco)"] = sum(aucs)/len(aucs)
+
+        all_metrics.at[am_index, "ROC-AUC per chromosome"] = sum(aucs)/len(aucs)
 
 
-    # In[34]:
+        # In[30]:
 
 
-    # Calculate hits @1
-    all_metrics.at[am_index, "Hits@1(lco)"] = sum(ref["Class"][(ref["Class"] == 1) & (ref["For-SNP rank"] == 1)])
+        ref = ref.merge(outcomes2[["nodeID", "predicted"]], on = "nodeID", how = "left")
 
 
-    # In[35]:
+        all_metrics.at[am_index, "Recall snps"] = len(set(ref["SNP ID"]))
+        all_metrics.at[am_index, "Recall entries"] = sum(ref["Class"])
+        all_metrics.at[am_index, "Recall genes"] = len(set(ref["nodeID"][ref["Class"] == 1]))
+
+        ref = ref.sort_values(["SNP ID", "predicted"], ascending = False)
+
+        SNP_temp = 0
+        counter = 0
+        prediction_temp = 9999
+        for indx, row in ref.iterrows():
+            if SNP_temp != row["SNP ID"]:
+                SNP_temp = row["SNP ID"]
+                counter = 1
+                prediction_temp = row["predicted"]
+            elif SNP_temp == row["SNP ID"] and prediction_temp != row["predicted"]:
+                counter += 1
+                prediction_temp = row["predicted"]
+            ref.at[indx, "For-SNP rank"] = counter
+
+        if writeOut:
+            ref_out = ref[["SNP ID", "nodeID", "predicted", "Class", "For-SNP rank"]].copy()
+            ref_out["For-SNP rank"] = ref_out["For-SNP rank"].astype(int)
+            ref_out.to_csv("/Users/vlietstraw/git/Post-GWAS/Struc2vec/" + am_values["refset"] + " " + am_values["variation"] + " " + am_values["algorithm"] + " " + am_values["bp distance"] + " " + datetime.today().strftime("%d-%m-%Y") + ".csv", sep = ";", index = False)
+
+        # In[32]:
 
 
-    # Calculate hits @3
-    all_metrics.at[am_index, "Hits@3(lco)"] = sum(ref["Class"][(ref["Class"] == 1) & (ref["For-SNP rank"] <= 3)])
+        fpr, tpr, thresholds = sklearn.metrics.roc_curve(ref["Class"], -ref["For-SNP rank"], pos_label = 1)
+        all_metrics.at[am_index, "ROC-AUC overall (lco)"] = sklearn.metrics.auc(fpr, tpr) * 100
 
 
-    # In[36]:
+        # In[33]:
 
 
-    # Calculate hits @5
-    all_metrics.at[am_index, "Hits@5(lco)"] = sum(ref["Class"][(ref["Class"] == 1) & (ref["For-SNP rank"] <= 5)])
+        # Calculate the ROC-AUC for every SNP and average the result
+        SNPS2 = list(set(ref["SNP ID"]))
+        aucs = []
+        for snp in SNPS2:
+          if len(set(ref["Class"][ref["SNP ID"] == snp])) == 1:
+              aucs.append(list(set(ref["Class"][ref["SNP ID"] == snp]))[0])
+          else:
+              fpr, tpr, thresholds = sklearn.metrics.roc_curve(ref["Class"][ref["SNP ID"] == snp], -ref["For-SNP rank"][ref["SNP ID"] == snp], pos_label = 1)
+              aucs.append(sklearn.metrics.auc(fpr, tpr))
+        all_metrics.at[am_index, "ROC-AUC - mean per snpl (lco)"] = sum(aucs)/len(aucs)
 
 
-    # In[37]:
+        # In[34]:
 
 
-    # Calculate hits @10
-    all_metrics.at[am_index, "Hits@10(lco)"] = sum(ref["Class"][(ref["Class"] == 1) & (ref["For-SNP rank"] <= 10)])
+        # Calculate hits @1
+        all_metrics.at[am_index, "Hits@1(lco)"] = sum(ref["Class"][(ref["Class"] == 1) & (ref["For-SNP rank"] == 1)])
 
 
-    # In[38]:
+        # In[35]:
 
 
-    all_metrics.at[am_index, "Mean rank (lco)"] = ref["For-SNP rank"][(ref["Class"] == 1)].mean()
+        # Calculate hits @3
+        all_metrics.at[am_index, "Hits@3(lco)"] = sum(ref["Class"][(ref["Class"] == 1) & (ref["For-SNP rank"] <= 3)])
 
 
-    # In[39]:
+        # In[36]:
 
 
-    all_metrics.at[am_index, "Median rank (lco)"] = ref["For-SNP rank"][ref["Class"] == 1].quantile(q = [0,0.25,0.5,0.75,1])[.50]
+        # Calculate hits @5
+        all_metrics.at[am_index, "Hits@5(lco)"] = sum(ref["Class"][(ref["Class"] == 1) & (ref["For-SNP rank"] <= 5)])
 
 
-all_metrics.to_csv("/Users/vlietstraw/git/Post-GWAS/Struc2vec/all_variations_performance_metrics.csv", sep = ";", decimal = ",", index = False)
+        # In[37]:
+
+
+        # Calculate hits @10
+        all_metrics.at[am_index, "Hits@10(lco)"] = sum(ref["Class"][(ref["Class"] == 1) & (ref["For-SNP rank"] <= 10)])
+
+
+        # In[38]:
+
+
+        all_metrics.at[am_index, "Mean rank (lco)"] = ref["For-SNP rank"][(ref["Class"] == 1)].mean()
+
+
+        # In[39]:
+
+
+        all_metrics.at[am_index, "Median rank (lco)"] = ref["For-SNP rank"][ref["Class"] == 1].quantile(q = [0,0.25,0.5,0.75,1])[.50]
+
+
+all_metrics.to_csv("/Users/vlietstraw/git/Post-GWAS/Struc2vec/all_variations_performance_metrics " + datetime.today().strftime("%d-%m-%Y") + ".csv", sep = ";", decimal = ",", index = False)

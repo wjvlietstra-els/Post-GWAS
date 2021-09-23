@@ -1,0 +1,8 @@
+refset;bp distance;Recall snps (lco);Recall genes (lco);ROC-AUC overall (lco);ROC-AUC - mean per snpl (lco);Hits@1(lco);Hits@3(lco);Hits@5(lco);Hits@10(lco);Mean rank (lco);Median rank (lco)
+Teslovich;25;;;;;;;;;;
+Teslovich;50;;;;;;;;;;
+Teslovich;100;1,0;1,0;;1,0;1,0;1,0;1,0;1,0;1,0;1,0
+Teslovich;500;5,0;5,0;65,0;0,8;4,0;5,0;5,0;5,0;1,2;1,0
+Teslovich;1000;7,0;7,0;74,67532467532469;0,8214285714285714;4,0;7,0;7,0;7,0;1,4285714285714286;1,0
+Teslovich;2000;8,0;8,0;65,10416666666666;0,696875;5,0;5,0;7,0;8,0;2,625;1,0
+Teslovich;depict;9,0;9,0;100,0;1,0;9,0;9,0;9,0;9,0;1,0;1,0
